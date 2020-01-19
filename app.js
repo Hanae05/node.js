@@ -5,125 +5,129 @@ logger.level = 'debug';
 logger.debug('Hello world!');
 
 
+
 const http = require('http');
 const fs = require('fs');
 const ejs = require('ejs');
 const url = require('url');
 const qs = require('querystring');
 
-const index_page = fs.readFileSync('./index.ejs', 'utf8');
-const login_page = fs.readFileSync('./login.ejs', 'utf8');
+const index_page = fs.readFileSync('./index.ejs','utf8');
+const other_page = fs.readFileSync('./other.ejs', 'utf8');
 const style_css = fs.readFileSync('./style.css', 'utf8');
-
-const max_num = 10; //最大保管数
-const filename = 'mydata.txt'; 　//データファイル名
-var message_data; 　//データ
-readFromFile(filename);
 
 var server = http.createServer(getFromClient);
 
 server.listen(3000);
-
 console.log('Server start!');
 
+//ここまでメインプログラム================
 
-//ここまでメインプログラム＝＝＝＝＝＝＝
-
-
-//createServerの処理
+//createSeverの処理
 function getFromClient(request, response){
+    var url_parts = url.parse(request.url,　true);
 
-    var url_parts = url.parse(request.url, true);
     switch (url_parts.pathname) {
 
-        case '/': //トップページ（掲示板)
+        case '/':
             response_index(request, response);
             break;
-        
-        case '/login': //ログインページ
-            response_login(request, response);
+
+        case '/other':
+            response_other(request, response);
             break;
-        
+
         case '/style.css':
-            response.writeHead(200, {'Content-Type': 'text/css'});
+            response.writeHead(200,{'Content-Type': 'text/css'});
             response.write(style_css);
             response.end();
             break;
-        
+
         default:
-            response.writeHead(200, {'Content-Type': 'text/css'});
-            response.write('no page...');
+            response.writeHead(200,{'Content-Type': 'text/plain'});
+            response.end('no page...');
             break;
     }
 }
 
-//loginのアクセス処理
-function response_login(request, response){
-    var content = ejs.render(login_page, {});
-    response.writeHead(200, {'Content-Type': 'text/html'});
-    response.write(content);
-    response.end();
-}
+//データ
+var data = {msg:'no message...'};
 
-// indexのアクセス処理
+//indexのアクセス処理
 function response_index(request, response){
     //POSTアクセス時の処理
     if (request.method == 'POST'){
-        var body = '';
+        var body='';
 
         //データ受信のイベント処理
-        request.on('data', function (data) {
+        request.on('data',(data) =>　{
             body +=data;
         });
 
-        // データ受信終了のイベント処理
-        request.on('end', function(){
+        //データ受信終了のイベント処理
+        request.on('end',() =>　{
             data = qs.parse(body);
-            addToData(data.id, data.msg, filename, request);
-            write_index(request, response);
-        })
+            //クッキーの保存
+            setCookie('msg',data.msg,response);
+            write_index(request,response);
+        });
     } else {
-        write_index(request, response);
+        write_index(request,response);
     }
 }
 
 //indexのページ作成
-function write_index(request, response) {
-    var msg = "※何かメッセージを書いてください。";
-    var content = ejs.render(index_page, {
-        title:'Index',
+function write_index(request,　response) {
+    var msg = "*伝言を表示します。"
+    var cookie_data = getCookie('msg',request);
+    var content = ejs.render(index_page,{
+        title:"Index",
         content:msg,
-        data:message_data,
-        filename:'data_item',
+        data:data,
+        cookie_data:cookie_data,
     });
-    response.writeHead(200, {'Content-Type': 'text/html'});
+    response.writeHead(200,{'Content-Type': 'text/html'});
     response.write(content);
     response.end();
 }
 
-//テキストファイルをダウンロード
-function readFromFile(fname) {
-    fs.readFile(fname, 'utf8', (error, data) => {
-        message_data = data.split('\n');
-    })
+//クッキーの値の設定
+function setCookie(key, value, response) {
+    var cookie = escape(value);
+    response.setHeader('Set-Cookie',[key + '=' + cookie]);
 }
 
-//データを更新
-function addToData(id, msg, fname, request) {
-    var obj = {'id': id, 'msg': msg};
-    var obj_str = JSON.stringify(obj);
-    console.log('add data: ' + obj_str);
-    message_data.unshift(obj_str);
-    if (message_data.length > max_num){
-        message_data.pop();
+//クッキーの値を取得
+function getCookie(key, request) {
+    var cookie_data = request.headers.cookie != undefined ?
+        request.headers.cookie : '';
+    var data = cookie_data.split(';');
+    for(var i in data){
+        if (data[i].trim().startsWith(key + '=')){
+            var result = data[i].trim().substring(key.length + 1);
+            return unescape(result);
+        }
     }
-    saveToFile(fname);
+    return '';
 }
 
-//データを保存
-function saveToFile(fname) {
-    var data_str = message_data.join('\n');
-    fs.writeFile(fname, data_str, (err) => {
-        if (err) { throw err; }
+var data2 = {
+    'Taro':['taro@yamada', '09-999-999', 'Tokyo'],
+    'Hanako':['hanako@flower', '080-888-888', 'Yokohama'],
+    'Sachiko':['sachi@happy', '070-777-777', 'Nagoya'],
+    'Ichiro':['ichi@baseball', '060-666-666', 'USA'],
+}
+
+//otherのアクセス処理
+function response_other(request, response){
+var msg = "これはOtherページです。"
+    var content = ejs.render(other_page, {
+        title:"Other",
+        content:msg,
+        data:data2,
+        filename:'data_item'
     });
+    response.writeHead(200,{'Content-Type': 'text/html'});
+    response.write(content);
+response.end();
 }
